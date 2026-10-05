@@ -557,29 +557,201 @@
     }
 
     function renderGuests(id) {
-      const q = (el('q')?.value || '').toLowerCase();
-      const arr = (window._guests || []).filter(g =>
-        (guestFilter === 'all' || g.status === guestFilter) &&
-        String(g.name || '').toLowerCase().includes(q)
-      );
+  const q = (el('q')?.value || '').toLowerCase();
 
-      A.innerHTML = `
-        <div class="top"><button class="back" onclick="dashboard('${id}')">‹</button><h2>Convidados</h2></div>
-        <input class="search" id="q" placeholder="Buscar convidado" value="${esc(q)}" oninput="renderGuests('${id}')">
-        <div class="filters">
-          <button class="secondary" onclick="guestFilter='all';renderGuests('${id}')">Todos</button>
-          <button class="secondary" onclick="guestFilter='confirmed';renderGuests('${id}')">Confirmados</button>
-          <button class="secondary" onclick="guestFilter='declined';renderGuests('${id}')">Não irão</button>
-        </div>
-        <div class="card">
-          ${arr.length ? arr.map(g => `
-            <div class="guest" onclick="guestDetail('${id}','${g.id}')">
-              <div class="row"><b>${esc(g.name)}</b><span class="pill">${g.status === 'confirmed' ? 'Confirmado' : g.status === 'declined' ? 'Não irá' : 'Pendente'}</span></div>
-              <small class="muted">${g.plus_ones || 0} acompanhante(s)</small>
-            </div>`).join('') : '<p class="muted">Nenhum convidado encontrado.</p>'}
-        </div>`;
-    }
+  const arr = (window._guests || []).filter(g =>
+    (guestFilter === 'all' || g.status === guestFilter) &&
+    String(g.name || '').toLowerCase().includes(q)
+  );
 
+  window._guestSelectMode = window._guestSelectMode || false;
+  window._selectedGuests = window._selectedGuests || new Set();
+
+  const selectedCount = window._selectedGuests.size;
+
+  A.innerHTML = `
+    <div class="top">
+      <button class="back" onclick="dashboard('${id}')">‹</button>
+      <h2 style="flex:1">Convidados</h2>
+      ${arr.length ? `
+        <button class="secondary"
+          style="width:auto;padding:9px 12px"
+          onclick="toggleGuestSelection('${id}')">
+          ${window._guestSelectMode ? 'Cancelar' : 'Selecionar'}
+        </button>
+      ` : ''}
+    </div>
+
+    <input
+      class="search"
+      id="q"
+      placeholder="Buscar convidado"
+      value="${esc(q)}"
+      oninput="renderGuests('${id}')"
+    >
+
+    <div class="filters">
+      <button class="secondary" onclick="guestFilter='all';renderGuests('${id}')">Todos</button>
+      <button class="secondary" onclick="guestFilter='confirmed';renderGuests('${id}')">Confirmados</button>
+      <button class="secondary" onclick="guestFilter='declined';renderGuests('${id}')">Não irão</button>
+    </div>
+
+    ${window._guestSelectMode && arr.length ? `
+      <div class="row" style="margin:12px 0">
+        <button
+          class="secondary"
+          style="width:auto"
+          onclick="selectAllGuests('${id}')">
+          Selecionar todos
+        </button>
+
+        <small class="muted">
+          ${selectedCount} selecionado(s)
+        </small>
+      </div>
+    ` : ''}
+
+    <div class="card">
+      ${arr.length ? arr.map(g => {
+        const selected = window._selectedGuests.has(String(g.id));
+
+        return `
+          <div class="guest"
+            onclick="${window._guestSelectMode
+              ? `toggleGuest('${id}','${g.id}')`
+              : `guestDetail('${id}','${g.id}')`}">
+
+            <div class="row">
+
+              <div style="display:flex;align-items:center;gap:12px">
+
+                ${window._guestSelectMode ? `
+                  <div style="
+                    width:24px;
+                    height:24px;
+                    min-width:24px;
+                    border-radius:50%;
+                    border:2px solid var(--g);
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    background:${selected ? 'var(--g)' : '#fff'};
+                    color:#fff;
+                    font-size:15px;
+                    font-weight:800;
+                  ">
+                    ${selected ? '✓' : ''}
+                  </div>
+                ` : ''}
+
+                <b>${esc(g.name)}</b>
+
+              </div>
+
+              <span class="pill">
+                ${g.status === 'confirmed'
+                  ? 'Confirmado'
+                  : g.status === 'declined'
+                    ? 'Não irá'
+                    : 'Pendente'}
+              </span>
+
+            </div>
+
+            <small class="muted">
+              ${g.plus_ones || 0} acompanhante(s)
+            </small>
+
+          </div>`;
+      }).join('') : '<p class="muted">Nenhum convidado encontrado.</p>'}
+    </div>
+
+    ${window._guestSelectMode && selectedCount ? `
+      <div class="stack">
+        <button
+          class="danger"
+          onclick="deleteSelectedGuests('${id}')">
+          Excluir selecionados (${selectedCount})
+        </button>
+      </div>
+    ` : ''}
+  `;
+}
+
+
+function toggleGuestSelection(id) {
+  window._guestSelectMode = !window._guestSelectMode;
+  window._selectedGuests = new Set();
+  renderGuests(id);
+}
+
+
+function toggleGuest(id, gid) {
+  const key = String(gid);
+
+  if (window._selectedGuests.has(key)) {
+    window._selectedGuests.delete(key);
+  } else {
+    window._selectedGuests.add(key);
+  }
+
+  renderGuests(id);
+}
+
+
+function selectAllGuests(id) {
+  const q = (el('q')?.value || '').toLowerCase();
+
+  const visible = (window._guests || []).filter(g =>
+    (guestFilter === 'all' || g.status === guestFilter) &&
+    String(g.name || '').toLowerCase().includes(q)
+  );
+
+  const allSelected =
+    visible.length > 0 &&
+    visible.every(g => window._selectedGuests.has(String(g.id)));
+
+  if (allSelected) {
+    visible.forEach(g =>
+      window._selectedGuests.delete(String(g.id))
+    );
+  } else {
+    visible.forEach(g =>
+      window._selectedGuests.add(String(g.id))
+    );
+  }
+
+  renderGuests(id);
+}
+
+
+async function deleteSelectedGuests(id) {
+  const ids = [...window._selectedGuests];
+
+  if (!ids.length) return;
+
+  const ok = confirm(
+    `Excluir ${ids.length} confirmação(ões) selecionada(s)?`
+  );
+
+  if (!ok) return;
+
+  const { error } = await sb
+    .from('guests')
+    .delete()
+    .in('id', ids)
+    .eq('event_id', id);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  window._selectedGuests = new Set();
+  window._guestSelectMode = false;
+
+  guests(id);
+}
     function guestDetail(id, gid) {
       const g = (window._guests || []).find(x => String(x.id) === String(gid));
       if (!g) return A.innerHTML = st('Convidado não encontrado.');
