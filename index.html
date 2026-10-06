@@ -247,8 +247,12 @@
   </svg>
 </button>          </div>
           <div class="stack">
-            <button class="primary" onclick="doLogin()">Entrar</button>
-            <button class="secondary" onclick="signup()">Criar conta</button>
+  <button type="button" onclick="forgotPassword()" style="background:none;border:0;padding:4px;color:var(--g);font-size:14px;text-align:right;cursor:pointer">
+    Esqueceu a senha?
+  </button>
+
+  <button class="primary" onclick="doLogin()">Entrar</button>
+  <button class="secondary" onclick="signup()">Criar conta</button>
           </div>
           <div id="msg"></div>
         </div>`;
@@ -258,12 +262,35 @@
       const p = el('pass');
       p.type = p.type === 'password' ? 'text' : 'password';
     }
+    async function forgotPassword() {
+  const email = el('email').value.trim();
+  const msg = el('msg');
+
+  if (!email) {
+    msg.innerHTML = st('Digite seu e-mail para recuperar a senha.');
+    el('email').focus();
+    return;
+  }
+
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: location.origin + '/'
+  });
+
+  if (error) {
+    msg.innerHTML = st('Não foi possível enviar o link de recuperação.');
+    return;
+  }
+
+  msg.innerHTML = st('Enviamos um link de recuperação para o seu e-mail.', true);
+}
 
     async function doLogin() {
       const email = el('email').value.trim();
       const password = el('pass').value;
       const { error } = await sb.auth.signInWithPassword({ email, password });
-      el('msg').innerHTML = error ? st(error.message) : st('Login realizado.', true);
+      el('msg').innerHTML = error
+  ? st('E-mail ou senha incorretos.')
+  : st('Login realizado.', true);
       if (!error) setTimeout(() => go('/painel'), 300);
     }
 
