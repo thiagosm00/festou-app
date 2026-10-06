@@ -240,8 +240,12 @@
           <label>Senha</label>
           <div class="row">
             <input id="pass" type="password">
-            <button style="width:58px;margin-left:7px" class="secondary" onclick="togglePass()">Ver</button>
-          </div>
+<button style="width:58px;margin-left:7px;display:flex;align-items:center;justify-content:center" class="secondary" onclick="togglePass()" aria-label="Mostrar ou ocultar senha">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
+</button>          </div>
           <div class="stack">
             <button class="primary" onclick="doLogin()">Entrar</button>
             <button class="secondary" onclick="signup()">Criar conta</button>
