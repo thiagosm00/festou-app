@@ -191,14 +191,25 @@
     // =========================================================
     // NAVEGAÇÃO
     // =========================================================
-    function nav() {
-      el('bottom').innerHTML = `
-        <button class="nav active" onclick="go('/')">${icons.home}Início</button>
-        <button class="nav" onclick="events()">${icons.event}Eventos</button>
-        <button class="nav" onclick="guests()">${icons.guests}Convidados</button>
-        <button class="nav" onclick="account()">${icons.account}Conta</button>
-      `;
-    }
+    function nav(active = 'home') {
+  el('bottom').innerHTML = `
+    <button class="nav ${active === 'home' ? 'active' : ''}" onclick="go('/')">
+      ${icons.home}Início
+    </button>
+
+    <button class="nav ${active === 'events' ? 'active' : ''}" onclick="events()">
+      ${icons.event}Eventos
+    </button>
+
+    <button class="nav ${active === 'guests' ? 'active' : ''}" onclick="guests()">
+      ${icons.guests}Convidados
+    </button>
+
+    <button class="nav ${active === 'account' ? 'active' : ''}" onclick="account()">
+      ${icons.account}Conta
+    </button>
+  `;
+}
     nav();
 
     // =========================================================
@@ -317,6 +328,7 @@
     // =========================================================
     async function home() {
       publicMode(false);
+      nav('home');
       await user();
 
       const categories = [
@@ -441,6 +453,7 @@
 
     async function events() {
       publicMode(false);
+      nav('events');
       const es = await getEvents();
 
       A.innerHTML = `
@@ -459,6 +472,7 @@
     }
 
     async function dashboard(id) {
+      nav('events');
       const { data: e, error } = await sb.from('events').select('*').eq('id', id).single();
       if (error || !e) return A.innerHTML = st(error?.message || 'Evento não encontrado.');
 
@@ -492,6 +506,7 @@
     }
 
     async function editEvent(id) {
+      nav('events');
       const { data: e, error } = await sb.from('events').select('*').eq('id', id).single();
       if (error || !e) return A.innerHTML = st(error?.message || 'Evento não encontrado.');
 
@@ -539,6 +554,7 @@
     // =========================================================
     async function guests(id) {
       publicMode(false);
+      nav('guests');
       if (!await need()) return;
 
       const es = await getEvents();
@@ -778,6 +794,7 @@ async function deleteSelectedGuests(id) {
     // COMPARTILHAMENTO
     // =========================================================
     async function shareEvent(id) {
+      nav('events');
       const { data: e, error } = await sb.from('events').select('*').eq('id', id).single();
       if (error || !e) return A.innerHTML = st(error?.message || 'Evento não encontrado.');
 
@@ -936,6 +953,7 @@ async function deleteSelectedGuests(id) {
     // =========================================================
     async function account() {
       publicMode(false);
+      nav('account');
       const u = await user();
       A.innerHTML = `
         <h2>Minha conta</h2>
