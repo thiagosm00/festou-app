@@ -1,4 +1,3 @@
-```
 <!doctype html>
 <html lang="pt-BR">
 <head>
@@ -7,7 +6,6 @@
   <meta name="theme-color" content="#f8f7f2">
   <title>Festou — organize, convide, celebre</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" defer></script>
 
   <style>
     :root {
@@ -112,10 +110,6 @@
     .theme-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
     .theme { padding: 12px 5px; }
     .theme.on { outline: 2px solid var(--g); }
-    .share-qr { display:flex;justify-content:center;align-items:center;min-height:210px;padding:14px;background:#fff;border:1px solid var(--line);border-radius:16px;margin-top:12px; }
-    .share-qr img, .share-qr canvas { max-width:100%;height:auto; }
-    .share-feedback { min-height:24px;margin-top:10px;font-size:14px;font-weight:700;color:var(--g); }
-    .share-feedback.error { color:var(--red); }
   </style>
 </head>
 
@@ -279,7 +273,7 @@
   }
 
   const { error } = await sb.auth.resetPasswordForEmail(email, {
-    redirectTo: location.origin + '/redefinir-senha'
+    redirectTo: location.origin + '/'
   });
 
   if (error) {
@@ -380,7 +374,7 @@ async function updatePassword() {
       const password = el('pass').value;
       const { error } = await sb.auth.signInWithPassword({ email, password });
       el('msg').innerHTML = error
-  ? st('Não foi possível entrar: ' + error.message)
+  ? st('E-mail ou senha incorretos.')
   : st('Login realizado.', true);
       if (!error) setTimeout(() => go('/painel'), 300);
     }
@@ -409,67 +403,36 @@ async function updatePassword() {
         </div>`;
     }
 
-    
-async function doSignup() {
-  const name = el('nm').value.trim();
-  const email = el('email').value.trim().toLowerCase();
-  const password = el('pass').value;
-  const agree = el('agree').checked;
-  const msg = el('msg');
+    async function doSignup() {
+      const agree = el('agree');
+      const pass = el('pass');
+      const msg = el('msg');
 
-  if (!name) {
-    msg.innerHTML = st('Informe seu nome.');
-    return;
-  }
-
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    msg.innerHTML = st('Informe um e-mail válido.');
-    return;
-  }
-
-  if (password.length < 8) {
-    msg.innerHTML = st('A senha precisa ter pelo menos 8 caracteres.');
-    return;
-  }
-
-  if (!agree) {
-    msg.innerHTML = st('Aceite os Termos de Uso e a Política de Privacidade.');
-    return;
-  }
-
-  msg.innerHTML = st('Processando cadastro...', true);
-
-  try {
-    const { data, error } = await sb.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { name },
-        emailRedirectTo: location.origin + '/'
+      if (!agree.checked) {
+        msg.innerHTML = st('Aceite os Termos de Uso e a Política de Privacidade.');
+        return;
       }
-    });
 
-    if (error) {
-      console.error('Erro no cadastro:', error);
-      msg.innerHTML = st('Erro no cadastro: ' + error.message);
-      return;
+      if (pass.value.length < 8) {
+        msg.innerHTML = st('A senha precisa ter pelo menos 8 caracteres.');
+        return;
+      }
+
+      const { data, error } = await sb.auth.signUp({
+        email: el('email').value.trim(),
+        password: pass.value,
+        options: {
+          data: { name: el('nm').value.trim() },
+          emailRedirectTo: location.origin + '/'
+        }
+      });
+
+      msg.innerHTML = error
+        ? st(error.message)
+        : st(data.session ? 'Conta criada.' : 'Conta criada. Confira seu e-mail para confirmar.', true);
+
+      if (data.session) setTimeout(() => go('/painel'), 400);
     }
-
-    msg.innerHTML = st(
-      data.session
-        ? 'Conta criada com sucesso!'
-        : 'Solicitação recebida. Confira seu e-mail para confirmar o cadastro.',
-      true
-    );
-
-    if (data.session) {
-      setTimeout(() => go('/painel'), 400);
-    }
-  } catch (error) {
-    console.error('Falha de conexão:', error);
-    msg.innerHTML = st('Falha de conexão. Tente novamente.');
-  }
-}
 
     async function logout() {
       await sb.auth.signOut();
@@ -482,7 +445,7 @@ async function doSignup() {
     async function home() {
       publicMode(false);
       nav('home');
-      user().catch(error => console.error('Falha ao consultar sessão:', error));
+      await user();
 
       const categories = [
         ['Aniversário', '<circle cx="12" cy="12" r="8"/><path d="M8 12h8M12 8v8"/>'],
@@ -533,6 +496,7 @@ async function doSignup() {
           <div class="check"><input id="plus" type="checkbox" checked style="accent-color:var(--g)"><label for="plus">Permitir acompanhantes</label></div>
           <label>Máximo de acompanhantes</label><input id="max" type="number" min="0" max="20" value="5" oninput="this.value=Math.min(Math.max(Number(this.value)||0,0),20)">
           <label>Prazo para confirmação</label><input id="deadline" type="date">
+          <div class="check"><input id="published" type="checkbox" checked style="accent-color:var(--g)"><label for="published">Publicar evento e permitir acesso ao convite</label></div>
         </div>
         <div class="stack"><button class="primary" onclick="createSave()">Criar evento</button></div>
         <div id="msg"></div>`;
@@ -569,7 +533,8 @@ async function doSignup() {
         invite_theme: el('theme').value,
         allow_plus_ones: el('plus').checked,
         max_plus_ones: clamp(el('max').value, 0, 20),
-        rsvp_deadline: el('deadline').value || null
+        rsvp_deadline: el('deadline').value || null,
+        is_published: el('published').checked
       };
 
       const { data, error } = await sb.from('events').insert([payload]).select().single();
@@ -607,7 +572,6 @@ async function doSignup() {
     async function events() {
       publicMode(false);
       nav('events');
-      if (!await need()) return;
       const es = await getEvents();
 
       A.innerHTML = `
@@ -681,6 +645,7 @@ async function doSignup() {
           <div class="check"><input id="plus" type="checkbox" ${e.allow_plus_ones !== false ? 'checked' : ''}><label for="plus">Permitir acompanhantes</label></div>
           <label>Máximo de acompanhantes</label><input id="max" type="number" min="0" max="20" value="${e.max_plus_ones ?? 5}" oninput="this.value=Math.min(Math.max(Number(this.value)||0,0),20)">
           <label>Prazo para confirmação</label><input id="deadline" type="date" value="${e.rsvp_deadline || ''}">
+          <div class="check"><input id="published" type="checkbox" ${e.is_published === true ? 'checked' : ''} style="accent-color:var(--g)"><label for="published">Evento publicado (convite acessível)</label></div>
         </div>
         <div class="stack"><button class="primary" onclick="saveEdit('${id}')">Salvar alterações</button></div>
         <div id="msg"></div>`;
@@ -695,7 +660,8 @@ async function doSignup() {
         invite_theme: el('theme').value,
         allow_plus_ones: el('plus').checked,
         max_plus_ones: clamp(el('max').value, 0, 20),
-        rsvp_deadline: el('deadline').value || null
+        rsvp_deadline: el('deadline').value || null,
+        is_published: el('published').checked
       };
 
       const { error } = await sb.from('events').update(payload).eq('id', id);
@@ -727,10 +693,7 @@ async function doSignup() {
     }
 
     function renderGuests(id) {
-  const searchInput = el('q');
-  const q = (searchInput?.value || '').toLowerCase();
-  const hadSearchFocus = document.activeElement === searchInput;
-  const caret = hadSearchFocus ? searchInput.selectionStart : null;
+  const q = (el('q')?.value || '').toLowerCase();
 
   const arr = (window._guests || []).filter(g =>
     (guestFilter === 'all' || g.status === guestFilter) &&
@@ -849,10 +812,6 @@ async function doSignup() {
       </div>
     ` : ''}
   `;
-  if (hadSearchFocus && el('q')) {
-    el('q').focus();
-    if (caret !== null) el('q').setSelectionRange(caret, caret);
-  }
 }
 
 
@@ -902,56 +861,13 @@ function selectAllGuests(id) {
 }
 
 
-// Confirmação interna: não depende de pop-ups nativos do navegador.
-function confirmFestou(message) {
-  return new Promise(resolve => {
-    const overlay = document.createElement('div');
-    overlay.setAttribute('role', 'presentation');
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:20px';
-    const dialog = document.createElement('div');
-    dialog.setAttribute('role', 'dialog');
-    dialog.setAttribute('aria-modal', 'true');
-    dialog.setAttribute('aria-label', 'Confirmar exclusão');
-    dialog.style.cssText = 'background:#fff;color:#171817;border-radius:22px;padding:26px;width:100%;max-width:420px;box-shadow:0 16px 48px rgba(0,0,0,.2)';
-    const title = document.createElement('h2');
-    title.textContent = 'Excluir confirmação?';
-    title.style.cssText = 'margin:0 0 12px;font-size:24px';
-    const description = document.createElement('p');
-    description.textContent = message;
-    description.style.cssText = 'color:#737873;margin:0 0 22px;line-height:1.5';
-    const actions = document.createElement('div');
-    actions.style.cssText = 'display:flex;gap:10px';
-    const cancel = document.createElement('button');
-    cancel.textContent = 'Cancelar';
-    cancel.style.cssText = 'flex:1;padding:13px;border:1px solid #e4e5df;border-radius:12px;background:#fff;color:#496f5d;font-weight:700';
-    const remove = document.createElement('button');
-    remove.textContent = 'Excluir';
-    remove.style.cssText = 'flex:1;padding:13px;border:0;border-radius:12px;background:#a83b32;color:#fff;font-weight:700';
-    function finish(confirmed) {
-      document.removeEventListener('keydown', onKey);
-      overlay.remove();
-      resolve(confirmed);
-    }
-    function onKey(event) { if (event.key === 'Escape') finish(false); }
-    cancel.addEventListener('click', () => finish(false));
-    remove.addEventListener('click', () => finish(true));
-    overlay.addEventListener('click', event => { if (event.target === overlay) finish(false); });
-    document.addEventListener('keydown', onKey);
-    actions.append(cancel, remove);
-    dialog.append(title, description, actions);
-    overlay.append(dialog);
-    document.body.append(overlay);
-    cancel.focus();
-  });
-}
-
 async function deleteSelectedGuests(id) {
   const ids = [...window._selectedGuests];
 
   if (!ids.length) return;
 
-  const ok = await confirmFestou(
-    `Deseja excluir ${ids.length} confirmação(ões) selecionada(s)? Esta ação não pode ser desfeita.`
+  const ok = confirm(
+    `Excluir ${ids.length} confirmação(ões) selecionada(s)?`
   );
 
   if (!ok) return;
@@ -963,7 +879,7 @@ async function deleteSelectedGuests(id) {
     .eq('event_id', id);
 
   if (error) {
-    A.insertAdjacentHTML('beforeend', st('Erro ao excluir: ' + error.message));
+    alert(error.message);
     return;
   }
 
@@ -988,122 +904,56 @@ async function deleteSelectedGuests(id) {
     }
 
     async function deleteGuest(id, gid) {
-      if (!await confirmFestou('Deseja excluir esta confirmação? Esta ação não pode ser desfeita.')) return;
+      if (!confirm('Excluir esta confirmação?')) return;
       const { error } = await sb.from('guests').delete().eq('id', gid);
-      if (error) { A.insertAdjacentHTML('beforeend', st('Erro ao excluir: ' + error.message)); return; }
-      await guests(id);
+      if (error) alert(error.message);
+      else guests(id);
     }
 
     // =========================================================
     // COMPARTILHAMENTO
     // =========================================================
-    function inviteUrl(e) {
-      return location.origin + '/convite/' + encodeURIComponent(e.slug);
-    }
-
-    function inviteMessage(e) {
-      const date = e.event_date ? fmtDate(e.event_date) : 'Data a definir';
-      const time = e.event_time ? ' às ' + fmtTime(e.event_time) : '';
-      const place = e.place ? '\nLocal: ' + e.place : '';
-      return `Você está convidado(a) para ${e.name}! 🎉\nData: ${date}${time}${place}\n\nConfirme sua presença: ${inviteUrl(e)}`;
-    }
-
-    let shareFeedbackTimer;
-    function shareFeedback(message, error = false) {
-      const box = el('shareFeedback');
-      if (!box) return;
-      clearTimeout(shareFeedbackTimer);
-      box.textContent = message;
-      box.classList.toggle('error', error);
-      shareFeedbackTimer = setTimeout(() => {
-        if (el('shareFeedback') === box) box.textContent = '';
-      }, 3000);
-    }
-
-    function renderInviteQr(url) {
-      const target = el('shareQr');
-      if (!target) return;
-      if (typeof QRCode !== 'function') {
-        target.innerHTML = '<span class="muted">QR Code indisponível. Utilize o link acima.</span>';
-        return;
-      }
-      target.textContent = '';
-      try {
-        new QRCode(target, {
-          text: url,
-          width: 180,
-          height: 180,
-          colorDark: '#171817',
-          colorLight: '#ffffff',
-          correctLevel: QRCode.CorrectLevel.M
-        });
-      } catch (error) {
-        console.error('Falha ao gerar QR Code:', error);
-        target.innerHTML = '<span class="muted">Não foi possível gerar o QR Code.</span>';
-      }
-    }
-
     async function shareEvent(id) {
-      publicMode(false);
       nav('events');
       const { data: e, error } = await sb.from('events').select('*').eq('id', id).single();
       if (error || !e) return A.innerHTML = st(error?.message || 'Evento não encontrado.');
 
-      const url = inviteUrl(e);
+      const url = location.origin + '/convite/' + e.slug;
       currentEvent = e;
+
       A.innerHTML = `
         <div class="top"><button class="back" onclick="dashboard('${id}')">‹</button><h2>Compartilhar convite</h2></div>
         <div class="card">
           <div class="eyebrow">Link do convite</div>
-          <p class="muted" style="word-break:break-all">${esc(url)}</p>
-          <div class="stack">
+          ${e.is_published === true ? `<p class="muted" style="word-break:break-all">${esc(url)}</p>` : `<p class="muted">Este evento está em rascunho. Publique-o em Editar evento antes de compartilhar.</p>`}
+          ${e.is_published === true ? `<div class="stack">
             <button class="primary" onclick="copyInviteLink('${id}')">Copiar link</button>
             <button class="secondary" onclick="shareInvite('${id}')">Compartilhar</button>
-            <button class="secondary" onclick="shareWhatsApp('${id}')">Enviar pelo WhatsApp</button>
-          </div>
-          <div id="shareFeedback" class="share-feedback" role="status" aria-live="polite"></div>
-          <div class="eyebrow" style="margin-top:22px">QR Code do convite</div>
-          <div id="shareQr" class="share-qr" aria-label="QR Code do convite"></div>
-          <p class="muted" style="font-size:13px;text-align:center">Aponte a câmera do celular para abrir o convite.</p>
+          </div>` : ''}
         </div>`;
-      renderInviteQr(url);
     }
 
     async function copyInviteLink(id) {
-      const e = currentEvent?.id === id ? currentEvent : null;
-      if (!e) return shareFeedback('Evento não encontrado. Abra novamente o compartilhamento.', true);
-      try {
-        await navigator.clipboard.writeText(inviteUrl(e));
-        shareFeedback('✓ Link copiado com sucesso!');
-      } catch (error) {
-        console.error('Erro ao copiar link:', error);
-        shareFeedback('Não foi possível copiar automaticamente. Selecione o link acima.', true);
-      }
+      const { data: e, error } = await sb.from('events').select('slug,is_published').eq('id', id).single();
+      if (error || !e) return alert(error?.message || 'Evento não encontrado.');
+      if (e.is_published !== true) return alert('Publique o evento antes de compartilhar o convite.');
+      const url = location.origin + '/convite/' + e.slug;
+      await navigator.clipboard.writeText(url);
+      alert('Link copiado!');
     }
 
     async function shareInvite(id) {
-      const e = currentEvent?.id === id ? currentEvent : null;
-      if (!e) return shareFeedback('Evento não encontrado. Abra novamente o compartilhamento.', true);
-      try {
-        if (navigator.share) {
-          await navigator.share({ title: e.name, text: inviteMessage(e) });
-        } else {
-          await navigator.clipboard.writeText(inviteMessage(e));
-          shareFeedback('✓ Mensagem do convite copiada!');
-        }
-      } catch (error) {
-        if (error?.name !== 'AbortError') {
-          console.error('Falha ao compartilhar:', error);
-          shareFeedback('Não foi possível compartilhar. Tente novamente.', true);
-        }
-      }
-    }
+      const { data: e, error } = await sb.from('events').select('name,slug,is_published').eq('id', id).single();
+      if (error || !e) return alert(error?.message || 'Evento não encontrado.');
+      if (e.is_published !== true) return alert('Publique o evento antes de compartilhar o convite.');
 
-    function shareWhatsApp(id) {
-      const e = currentEvent?.id === id ? currentEvent : null;
-      if (!e) return shareFeedback('Evento não encontrado. Abra novamente o compartilhamento.', true);
-      const url = 'https://api.whatsapp.com/send?text=' + encodeURIComponent(inviteMessage(e));
-      window.open(url, '_blank', 'noopener,noreferrer');
+      const url = location.origin + '/convite/' + e.slug;
+      if (navigator.share) {
+        await navigator.share({ title: e.name, text: 'Você está convidado!', url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        alert('Link copiado!');
+      }
     }
 
     // =========================================================
@@ -1114,6 +964,7 @@ async function deleteSelectedGuests(id) {
 
       const { data: e, error } = await sb.from('events').select('*').eq('slug', slug).single();
       if (error || !e) return A.innerHTML = st('Convite não encontrado.');
+      if (e.is_published !== true) return A.innerHTML = st('Este convite ainda não foi publicado.');
 
       currentEvent = e;
       const closed = e.rsvp_deadline && new Date(e.rsvp_deadline + 'T23:59:59') < new Date();
@@ -1143,6 +994,7 @@ async function deleteSelectedGuests(id) {
 
       const { data: e, error } = await sb.from('events').select('*').eq('slug', slug).single();
       if (error || !e) return A.innerHTML = st('Convite não encontrado.');
+      if (e.is_published !== true) return A.innerHTML = st('Este convite ainda não foi publicado.');
 
       // Evita uma segunda resposta no mesmo navegador/aparelho.
       // É uma proteção de UX, não uma garantia global contra duplicidade.
@@ -1264,7 +1116,6 @@ async function deleteSelectedGuests(id) {
 
       if (p === '/termos') return legal('termos');
       if (p === '/privacidade') return legal('privacidade');
-      if (p === '/redefinir-senha') return passwordRecovery();
 
       let m = p.match(/^\/convite\/([^/]+)\/confirmar\/?$/);
       if (m) return rsvp(decodeURIComponent(m[1]));
@@ -1285,14 +1136,11 @@ sb.auth.onAuthStateChange((event) => {
     passwordRecovery();
     return;
   }
-  // Avoid awaiting Supabase auth calls inside this callback.
-  setTimeout(() => {
-    user().catch(error => console.error('Erro ao atualizar sessão:', error));
-  }, 0);
+
+  user();
 });
 
 route();
   </script>
 </body>
 </html>
-```
