@@ -1,3 +1,4 @@
+```
 <!doctype html>
 <html lang="pt-BR">
 <head>
@@ -6,6 +7,7 @@
   <meta name="theme-color" content="#f8f7f2">
   <title>Festou — organize, convide, celebre</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" defer></script>
 
   <style>
     :root {
@@ -110,6 +112,10 @@
     .theme-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
     .theme { padding: 12px 5px; }
     .theme.on { outline: 2px solid var(--g); }
+    .share-qr { display:flex;justify-content:center;align-items:center;min-height:210px;padding:14px;background:#fff;border:1px solid var(--line);border-radius:16px;margin-top:12px; }
+    .share-qr img, .share-qr canvas { max-width:100%;height:auto; }
+    .share-feedback { min-height:24px;margin-top:10px;font-size:14px;font-weight:700;color:var(--g); }
+    .share-feedback.error { color:var(--red); }
   </style>
 </head>
 
@@ -991,14 +997,60 @@ async function deleteSelectedGuests(id) {
     // =========================================================
     // COMPARTILHAMENTO
     // =========================================================
+    function inviteUrl(e) {
+      return location.origin + '/convite/' + encodeURIComponent(e.slug);
+    }
+
+    function inviteMessage(e) {
+      const date = e.event_date ? fmtDate(e.event_date) : 'Data a definir';
+      const time = e.event_time ? ' às ' + fmtTime(e.event_time) : '';
+      const place = e.place ? '\nLocal: ' + e.place : '';
+      return `Você está convidado(a) para ${e.name}! 🎉\nData: ${date}${time}${place}\n\nConfirme sua presença: ${inviteUrl(e)}`;
+    }
+
+    let shareFeedbackTimer;
+    function shareFeedback(message, error = false) {
+      const box = el('shareFeedback');
+      if (!box) return;
+      clearTimeout(shareFeedbackTimer);
+      box.textContent = message;
+      box.classList.toggle('error', error);
+      shareFeedbackTimer = setTimeout(() => {
+        if (el('shareFeedback') === box) box.textContent = '';
+      }, 3000);
+    }
+
+    function renderInviteQr(url) {
+      const target = el('shareQr');
+      if (!target) return;
+      if (typeof QRCode !== 'function') {
+        target.innerHTML = '<span class="muted">QR Code indisponível. Utilize o link acima.</span>';
+        return;
+      }
+      target.textContent = '';
+      try {
+        new QRCode(target, {
+          text: url,
+          width: 180,
+          height: 180,
+          colorDark: '#171817',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      } catch (error) {
+        console.error('Falha ao gerar QR Code:', error);
+        target.innerHTML = '<span class="muted">Não foi possível gerar o QR Code.</span>';
+      }
+    }
+
     async function shareEvent(id) {
+      publicMode(false);
       nav('events');
       const { data: e, error } = await sb.from('events').select('*').eq('id', id).single();
       if (error || !e) return A.innerHTML = st(error?.message || 'Evento não encontrado.');
 
-      const url = location.origin + '/convite/' + e.slug;
+      const url = inviteUrl(e);
       currentEvent = e;
-
       A.innerHTML = `
         <div class="top"><button class="back" onclick="dashboard('${id}')">‹</button><h2>Compartilhar convite</h2></div>
         <div class="card">
@@ -1007,29 +1059,51 @@ async function deleteSelectedGuests(id) {
           <div class="stack">
             <button class="primary" onclick="copyInviteLink('${id}')">Copiar link</button>
             <button class="secondary" onclick="shareInvite('${id}')">Compartilhar</button>
+            <button class="secondary" onclick="shareWhatsApp('${id}')">Enviar pelo WhatsApp</button>
           </div>
+          <div id="shareFeedback" class="share-feedback" role="status" aria-live="polite"></div>
+          <div class="eyebrow" style="margin-top:22px">QR Code do convite</div>
+          <div id="shareQr" class="share-qr" aria-label="QR Code do convite"></div>
+          <p class="muted" style="font-size:13px;text-align:center">Aponte a câmera do celular para abrir o convite.</p>
         </div>`;
+      renderInviteQr(url);
     }
 
     async function copyInviteLink(id) {
-      const { data: e, error } = await sb.from('events').select('slug').eq('id', id).single();
-      if (error || !e) return alert(error?.message || 'Evento não encontrado.');
-      const url = location.origin + '/convite/' + e.slug;
-      await navigator.clipboard.writeText(url);
-      alert('Link copiado!');
+      const e = currentEvent?.id === id ? currentEvent : null;
+      if (!e) return shareFeedback('Evento não encontrado. Abra novamente o compartilhamento.', true);
+      try {
+        await navigator.clipboard.writeText(inviteUrl(e));
+        shareFeedback('✓ Link copiado com sucesso!');
+      } catch (error) {
+        console.error('Erro ao copiar link:', error);
+        shareFeedback('Não foi possível copiar automaticamente. Selecione o link acima.', true);
+      }
     }
 
     async function shareInvite(id) {
-      const { data: e, error } = await sb.from('events').select('name,slug').eq('id', id).single();
-      if (error || !e) return alert(error?.message || 'Evento não encontrado.');
-
-      const url = location.origin + '/convite/' + e.slug;
-      if (navigator.share) {
-        await navigator.share({ title: e.name, text: 'Você está convidado!', url });
-      } else {
-        await navigator.clipboard.writeText(url);
-        alert('Link copiado!');
+      const e = currentEvent?.id === id ? currentEvent : null;
+      if (!e) return shareFeedback('Evento não encontrado. Abra novamente o compartilhamento.', true);
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: e.name, text: inviteMessage(e) });
+        } else {
+          await navigator.clipboard.writeText(inviteMessage(e));
+          shareFeedback('✓ Mensagem do convite copiada!');
+        }
+      } catch (error) {
+        if (error?.name !== 'AbortError') {
+          console.error('Falha ao compartilhar:', error);
+          shareFeedback('Não foi possível compartilhar. Tente novamente.', true);
+        }
       }
+    }
+
+    function shareWhatsApp(id) {
+      const e = currentEvent?.id === id ? currentEvent : null;
+      if (!e) return shareFeedback('Evento não encontrado. Abra novamente o compartilhamento.', true);
+      const url = 'https://api.whatsapp.com/send?text=' + encodeURIComponent(inviteMessage(e));
+      window.open(url, '_blank', 'noopener,noreferrer');
     }
 
     // =========================================================
@@ -1221,3 +1295,4 @@ route();
   </script>
 </body>
 </html>
+```
