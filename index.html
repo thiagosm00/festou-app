@@ -403,7 +403,68 @@ async function updatePassword() {
         </div>`;
     }
 
-    async function doSignup() {
+    
+async function doSignup() {
+  const name = el('nm').value.trim();
+  const email = el('email').value.trim().toLowerCase();
+  const password = el('pass').value;
+  const agree = el('agree').checked;
+  const msg = el('msg');
+
+  if (!name) {
+    msg.innerHTML = st('Informe seu nome.');
+    return;
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    msg.innerHTML = st('Informe um e-mail válido.');
+    return;
+  }
+
+  if (password.length < 8) {
+    msg.innerHTML = st('A senha precisa ter pelo menos 8 caracteres.');
+    return;
+  }
+
+  if (!agree) {
+    msg.innerHTML = st('Aceite os Termos de Uso e a Política de Privacidade.');
+    return;
+  }
+
+  msg.innerHTML = st('Processando cadastro...', true);
+
+  try {
+    const { data, error } = await sb.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name },
+        emailRedirectTo: location.origin + '/'
+      }
+    });
+
+    if (error) {
+      console.error('Erro no cadastro:', error);
+      msg.innerHTML = st('Erro no cadastro: ' + error.message);
+      return;
+    }
+
+    msg.innerHTML = st(
+      data.session
+        ? 'Conta criada com sucesso!'
+        : 'Solicitação recebida. Confira seu e-mail para confirmar o cadastro.',
+      true
+    );
+
+    if (data.session) {
+      setTimeout(() => go('/painel'), 400);
+    }
+  } catch (error) {
+    console.error('Falha de conexão:', error);
+    msg.innerHTML = st('Falha de conexão. Tente novamente.');
+  }
+}
+ {
       const agree = el('agree');
       const pass = el('pass');
       const msg = el('msg');
