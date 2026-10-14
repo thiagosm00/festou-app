@@ -273,7 +273,7 @@
   }
 
   const { error } = await sb.auth.resetPasswordForEmail(email, {
-    redirectTo: location.origin + '/'
+    redirectTo: location.origin + '/redefinir-senha'
   });
 
   if (error) {
@@ -374,7 +374,7 @@ async function updatePassword() {
       const password = el('pass').value;
       const { error } = await sb.auth.signInWithPassword({ email, password });
       el('msg').innerHTML = error
-  ? st('E-mail ou senha incorretos.')
+  ? st('Não foi possível entrar: ' + error.message)
   : st('Login realizado.', true);
       if (!error) setTimeout(() => go('/painel'), 300);
     }
@@ -464,36 +464,6 @@ async function doSignup() {
     msg.innerHTML = st('Falha de conexão. Tente novamente.');
   }
 }
- {
-      const agree = el('agree');
-      const pass = el('pass');
-      const msg = el('msg');
-
-      if (!agree.checked) {
-        msg.innerHTML = st('Aceite os Termos de Uso e a Política de Privacidade.');
-        return;
-      }
-
-      if (pass.value.length < 8) {
-        msg.innerHTML = st('A senha precisa ter pelo menos 8 caracteres.');
-        return;
-      }
-
-      const { data, error } = await sb.auth.signUp({
-        email: el('email').value.trim(),
-        password: pass.value,
-        options: {
-          data: { name: el('nm').value.trim() },
-          emailRedirectTo: location.origin + '/'
-        }
-      });
-
-      msg.innerHTML = error
-        ? st(error.message)
-        : st(data.session ? 'Conta criada.' : 'Conta criada. Confira seu e-mail para confirmar.', true);
-
-      if (data.session) setTimeout(() => go('/painel'), 400);
-    }
 
     async function logout() {
       await sb.auth.signOut();
@@ -506,7 +476,7 @@ async function doSignup() {
     async function home() {
       publicMode(false);
       nav('home');
-      await user();
+      user().catch(error => console.error('Falha ao consultar sessão:', error));
 
       const categories = [
         ['Aniversário', '<circle cx="12" cy="12" r="8"/><path d="M8 12h8M12 8v8"/>'],
@@ -631,6 +601,7 @@ async function doSignup() {
     async function events() {
       publicMode(false);
       nav('events');
+      if (!await need()) return;
       const es = await getEvents();
 
       A.innerHTML = `
@@ -750,7 +721,10 @@ async function doSignup() {
     }
 
     function renderGuests(id) {
-  const q = (el('q')?.value || '').toLowerCase();
+  const searchInput = el('q');
+  const q = (searchInput?.value || '').toLowerCase();
+  const hadSearchFocus = document.activeElement === searchInput;
+  const caret = hadSearchFocus ? searchInput.selectionStart : null;
 
   const arr = (window._guests || []).filter(g =>
     (guestFilter === 'all' || g.status === guestFilter) &&
@@ -869,6 +843,10 @@ async function doSignup() {
       </div>
     ` : ''}
   `;
+  if (hadSearchFocus && el('q')) {
+    el('q').focus();
+    if (caret !== null) el('q').setSelectionRange(caret, caret);
+  }
 }
 
 
@@ -1169,6 +1147,7 @@ async function deleteSelectedGuests(id) {
 
       if (p === '/termos') return legal('termos');
       if (p === '/privacidade') return legal('privacidade');
+      if (p === '/redefinir-senha') return passwordRecovery();
 
       let m = p.match(/^\/convite\/([^/]+)\/confirmar\/?$/);
       if (m) return rsvp(decodeURIComponent(m[1]));
@@ -1189,8 +1168,10 @@ sb.auth.onAuthStateChange((event) => {
     passwordRecovery();
     return;
   }
-
-  user();
+  // Avoid awaiting Supabase auth calls inside this callback.
+  setTimeout(() => {
+    user().catch(error => console.error('Erro ao atualizar sessão:', error));
+  }, 0);
 });
 
 route();
