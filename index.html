@@ -606,39 +606,136 @@ async function events() {
 }
 
 
-    async function dashboard(id) {
-      nav('events');
-      const { data: e, error } = await sb.from('events').select('*').eq('id', id).single();
-      if (error || !e) return A.innerHTML = st(error?.message || 'Evento não encontrado.');
+    
+async function dashboard(id) {
+  nav('events');
 
-      currentEvent = e;
-      const { data: g, error: guestError } = await sb.from('guests').select('*').eq('event_id', id);
-      if (guestError) return A.innerHTML = st(guestError.message);
+  const { data: e, error } = await sb
+    .from('events')
+    .select('*')
+    .eq('id', id)
+    .single();
 
-      const guests = g || [];
-      const confirmed = guests.filter(x => x.status === 'confirmed');
-      const declined = guests.filter(x => x.status === 'declined');
-      const companions = confirmed.reduce((sum, x) => sum + (+x.plus_ones || 0), 0);
+  if (error || !e) {
+    A.innerHTML = st(error?.message || 'Evento não encontrado.');
+    return;
+  }
 
-      A.innerHTML = `
-        <div class="top"><button class="back" onclick="events()">‹</button><h2>Painel</h2></div>
-        <div class="event">
-          <div class="eyebrow" style="color:#dfe9e3">${esc(e.type || 'Evento')}</div>
-          <h2>${esc(e.name)}</h2>
-          <div class="grid">
-            <div><b>${confirmed.length}</b><br><small>Confirmados</small></div>
-            <div><b>${companions}</b><br><small>Acompanhantes</small></div>
-            <div><b>${confirmed.length + companions}</b><br><small>Total previsto</small></div>
-            <div><b>${declined.length}</b><br><small>Não irão</small></div>
-          </div>
-        </div>
-        <div class="stack">
-          <button class="primary" onclick="go('/convite/${e.slug}')">Ver convite</button>
-          <button class="secondary" onclick="editEvent('${id}')">Editar evento</button>
-          <button class="secondary" onclick="guests('${id}')">Convidados</button>
-          <button class="secondary" onclick="shareEvent('${id}')">Compartilhar</button>
-        </div>`;
-    }
+  currentEvent = e;
+
+  const { data: g, error: guestError } = await sb
+    .from('guests')
+    .select('*')
+    .eq('event_id', id);
+
+  if (guestError) {
+    A.innerHTML = st(guestError.message);
+    return;
+  }
+
+  const guests = g || [];
+  const confirmed = guests.filter(x => x.status === 'confirmed');
+  const declined = guests.filter(x => x.status === 'declined');
+  const companions = confirmed.reduce(
+    (sum, x) => sum + (+x.plus_ones || 0), 0
+  );
+
+  A.innerHTML = `
+    <div class="top">
+      <button class="back" onclick="events()">‹</button>
+      <h2>Painel</h2>
+    </div>
+
+    <div class="event">
+      <div class="eyebrow" style="color:#dfe9e3">
+        ${esc(e.type || 'Evento')}
+      </div>
+
+      <h2>${esc(e.name)}</h2>
+
+      <div style="margin:12px 0">
+        <span style="display:inline-block;padding:6px 12px;border-radius:20px;background:${e.is_published === true ? '#e3f1e8' : '#f3eee3'};color:${e.is_published === true ? '#365848' : '#85652c'};font-weight:700;font-size:13px">
+          ${e.is_published === true ? '✓ Publicado' : '● Rascunho'}
+        </span>
+      </div>
+
+      <div class="grid">
+        <div><b>${confirmed.length}</b><br><small>Confirmados</small></div>
+        <div><b>${companions}</b><br><small>Acompanhantes</small></div>
+        <div><b>${confirmed.length + companions}</b><br><small>Total previsto</small></div>
+        <div><b>${declined.length}</b><br><small>Não irão</small></div>
+      </div>
+    </div>
+
+    <div class="stack">
+      <button class="primary" onclick="go('/convite/${e.slug}')">
+        Ver convite
+      </button>
+
+      <button class="secondary" onclick="togglePublication('${id}')">
+        ${e.is_published === true
+          ? 'Despublicar evento'
+          : 'Publicar evento'}
+      </button>
+
+      <button class="secondary" onclick="editEvent('${id}')">
+        Editar evento
+      </button>
+
+      <button class="secondary" onclick="guests('${id}')">
+        Convidados
+      </button>
+
+      <button class="secondary" onclick="shareEvent('${id}')">
+        Compartilhar
+      </button>
+    </div>
+
+    <div id="publicationMsg"></div>
+  `;
+}
+
+
+async function togglePublication(id) {
+  const u = await need();
+  if (!u) return;
+
+  const { data: event, error: readError } = await sb
+    .from('events')
+    .select('id, is_published')
+    .eq('id', id)
+    .eq('owner_id', u.id)
+    .single();
+
+  if (readError || !event) {
+    alert('Não foi possível localizar o evento.');
+    return;
+  }
+
+  const publish = event.is_published !== true;
+
+  const question = publish
+    ? 'Deseja publicar este evento?'
+    : 'Deseja despublicar este evento?';
+
+  if (!confirm(question)) return;
+
+  const { data, error } = await sb
+    .from('events')
+    .update({ is_published: publish })
+    .eq('id', id)
+    .eq('owner_id', u.id)
+    .select('id')
+    .single();
+
+  if (error || !data) {
+    alert('Erro ao atualizar publicação: ' +
+      (error?.message || 'Evento não atualizado.'));
+    return;
+  }
+
+  await dashboard(id);
+}
 
     async function editEvent(id) {
       nav('events');
