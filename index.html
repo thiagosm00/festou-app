@@ -569,25 +569,42 @@ async function updatePassword() {
       return data || [];
     }
 
-    async function events() {
-      publicMode(false);
-      nav('events');
-      const es = await getEvents();
+   
+async function events() {
+  publicMode(false);
+  nav('events');
+  const es = await getEvents();
 
-      A.innerHTML = `
-        <div class="row"><h2>Meus eventos</h2><button class="primary" style="width:auto" onclick="create()">+ Criar</button></div>
-        ${es.length ? es.map(e => `
-          <div class="event">
-            <small>${fmtDate(e.event_date)} • ${esc(fmtTime(e.event_time))}</small>
-            <h2>${esc(e.name)}</h2>
-            <div>${esc(e.place || 'Local não informado')}</div>
-            <div class="stack"><button class="secondary" onclick="dashboard('${e.id}')">Abrir painel</button></div>
-          </div>`).join('') : `
-          <div class="card">
-            <p class="muted">Você ainda não criou um evento.</p>
-            <button class="primary" onclick="create()">Criar evento</button>
-          </div>`}`;
-    }
+  A.innerHTML = `
+    <div class="row">
+      <h2>Meus eventos</h2>
+      <button class="primary" style="width:auto" onclick="create()">+ Criar</button>
+    </div>
+
+    ${es.length ? es.map(e => `
+      <div class="event">
+        <small>${fmtDate(e.event_date)} • ${esc(fmtTime(e.event_time))}</small>
+
+        <h2>${esc(e.name)}</h2>
+
+        <div style="margin:8px 0">
+          <span style="display:inline-block;padding:5px 10px;border-radius:20px;background:${e.is_published === true ? '#e3f1e8' : '#f3eee3'};color:${e.is_published === true ? '#365848' : '#85652c'};font-size:12px;font-weight:700">
+            ${e.is_published === true ? '✓ Publicado' : '● Rascunho'}
+          </span>
+        </div>
+
+        <div>${esc(e.place || 'Local não informado')}</div>
+
+        <div class="stack">
+          <button class="secondary" onclick="dashboard('${e.id}')">Abrir painel</button>
+        </div>
+      </div>`).join('') : `
+      <div class="card">
+        <p class="muted">Você ainda não criou um evento.</p>
+        <button class="primary" onclick="create()">Criar evento</button>
+      </div>`}`;
+}
+
 
     async function dashboard(id) {
       nav('events');
