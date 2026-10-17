@@ -1073,35 +1073,67 @@ async function deleteSelectedGuests(id) {
     // =========================================================
     // CONVITE PÚBLICO E RSVP
     // =========================================================
-    async function publicInvite(slug) {
-      publicMode(true);
+    
+async function publicInvite(slug) {
+  publicMode(true);
 
-      const { data: e, error } = await sb.from('events').select('*').eq('slug', slug).single();
-      if (error || !e) return A.innerHTML = st('Convite não encontrado.');
-      if (e.is_published !== true) return A.innerHTML = st('Este convite ainda não foi publicado.');
+  const { data: e, error } = await sb
+    .from('events')
+    .select('*')
+    .eq('slug', slug)
+    .single();
 
-      currentEvent = e;
-      const closed = e.rsvp_deadline && new Date(e.rsvp_deadline + 'T23:59:59') < new Date();
-      const theme = e.invite_theme || 'classic';
-      const map = e.address
-        ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(e.address)
-        : '';
+  if (error || !e || e.is_published !== true) {
+    A.innerHTML = st('Este convite não está disponível no momento.');
+    return;
+  }
 
-      A.innerHTML = `
-        <div class="invite ${theme}">
-          <div class="invite-card">
-            <div class="eyebrow">${esc(e.type || 'Evento')}</div>
-            <h1>${esc(e.name)}</h1>
-            <p>${fmtDate(e.event_date)}${e.event_time ? ' às ' + esc(fmtTime(e.event_time)) : ''}</p>
-            <p>⌖ ${esc(e.place || 'Local a definir')}</p>
-            ${e.address ? `<div class="address">${esc(e.address)}</div><a class="map" target="_blank" href="${map}">Ver no mapa</a>` : ''}
-            <p class="muted">${esc(e.description || 'Será um prazer ter você conosco!')}</p>
-            ${closed
-              ? '<div class="status err">Confirmações encerradas.</div>'
-              : `<button class="primary" onclick="go('/convite/${e.slug}/confirmar')">Confirmar presença</button>`}
-          </div>
-        </div>`;
-    }
+  currentEvent = e;
+
+  const closed = e.rsvp_deadline &&
+    new Date(e.rsvp_deadline + 'T23:59:59') < new Date();
+
+  const theme = e.invite_theme || 'classic';
+
+  const map = e.address
+    ? 'https://www.google.com/maps/search/?api=1&query=' +
+      encodeURIComponent(e.address)
+    : '';
+
+  A.innerHTML = `
+    <div class="invite ${theme}">
+      <div class="invite-card">
+        <div class="eyebrow">${esc(e.type || 'Evento')}</div>
+        <h1>${esc(e.name)}</h1>
+
+        <p>
+          ${fmtDate(e.event_date)}
+          ${e.event_time ? ' às ' + esc(fmtTime(e.event_time)) : ''}
+        </p>
+
+        <p>⌖ ${esc(e.place || 'Local a definir')}</p>
+
+        ${e.address ? `
+          <div class="address">${esc(e.address)}</div>
+          <a class="map" target="_blank" href="${map}">
+            Ver no mapa
+          </a>
+        ` : ''}
+
+        <p class="muted">
+          ${esc(e.description || 'Será um prazer ter você conosco!')}
+        </p>
+
+        ${closed
+          ? '<div class="status err">Confirmações encerradas.</div>'
+          : `<button class="primary"
+              onclick="go('/convite/${e.slug}/confirmar')">
+              Confirmar presença
+            </button>`}
+      </div>
+    </div>`;
+}
+
 
     async function rsvp(slug) {
       publicMode(true);
