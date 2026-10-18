@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#f8f7f2">
   <title>Festou — organize, convide, celebre</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 
   <style>
     :root {
@@ -92,6 +93,28 @@
     .invite.sage { --g: #718b78; background: #f3f5f0; }
     .invite.olive { --g: #6c7148; background: #f5f3e9; }
     .invite-card { max-width: 460px; margin: auto; background: #fff; border: 1px solid var(--line); border-radius: 24px; padding: 28px 22px; }
+    /* Temas festivos: decoração CSS, sem alterar os dados do evento */
+    .invite { min-height: 70vh; border-radius: 24px; position: relative; overflow: hidden; }
+    .invite-card { position: relative; z-index: 1; box-shadow: 0 15px 45px rgba(25,35,25,.09); }
+    .invite .eyebrow { color: var(--g); }
+    .invite.christmas { --g:#276747; background: radial-gradient(circle at 12% 12%,#f5d88c 0 3%,transparent 3.5%),radial-gradient(circle at 88% 85%,#f5d88c 0 2%,transparent 2.5%),linear-gradient(145deg,#174e38,#3d7758 55%,#a13d3d); }
+    .invite.christmas::before { content:'✦  ❄  ✦  ❄  ✦'; color:#ffe4a3; letter-spacing:12px; position:absolute;top:14px;left:0;right:0;font-size:23px; }
+    .invite.junina { --g:#a64e23; background:repeating-linear-gradient(120deg,transparent 0 65px,rgba(255,255,255,.13) 66px 69px),linear-gradient(145deg,#f5b43c,#e87543 55%,#ac4b79); }
+    .invite.junina::before { content:'🚩  🟨  🚩  🟩  🚩  🟦  🚩'; position:absolute;top:8px;left:0;right:0;font-size:20px; }
+    .invite.carnival { --g:#6637a6; background:radial-gradient(circle at 20% 25%,#ffda59 0 10%,transparent 11%),radial-gradient(circle at 82% 80%,#ff8cc2 0 13%,transparent 14%),linear-gradient(135deg,#7448c7,#e25e9c,#1d9e9c); }
+    .invite.carnival::before { content:'✦  ●  ✦  ◆  ✦  ●';position:absolute;top:14px;left:0;right:0;color:white;letter-spacing:8px;font-size:24px; }
+    .invite.newyear { --g:#9b782d; background:radial-gradient(circle at 50% 5%,rgba(245,218,145,.25),transparent 55%),linear-gradient(145deg,#13283a,#263d51,#716044); }
+    .invite.newyear::before { content:'✧  ✨  ✧  ✨  ✧';position:absolute;top:12px;left:0;right:0;color:#ffe4a1;letter-spacing:9px;font-size:22px; }
+    .invite.birthday { --g:#b04e7b; background:radial-gradient(circle at 15% 18%,#ffcd70 0 8%,transparent 8.5%),radial-gradient(circle at 90% 65%,#b4d5fc 0 12%,transparent 12.5%),linear-gradient(145deg,#ffdae7,#e5ddff,#fff0c7); }
+    .invite.birthday::before { content:'🎈  ✦  🎉  ✦  🎈';position:absolute;top:10px;left:0;right:0;font-size:23px; }
+    .invite.wedding { --g:#866d63; background:radial-gradient(circle at 10% 15%,#f5e5d8 0 14%,transparent 15%),radial-gradient(circle at 90% 80%,#e3eadb 0 20%,transparent 21%),linear-gradient(145deg,#f8f3ed,#eadbd5,#dce7d9); }
+    .invite.wedding::before { content:'❀  ✧  ❀  ✧  ❀';position:absolute;top:10px;left:0;right:0;color:#9b7b78;letter-spacing:12px;font-size:22px; }
+    .invite.christmas .invite-card,.invite.junina .invite-card,.invite.carnival .invite-card,.invite.newyear .invite-card { margin-top:18px; }
+    .qr-box { display:flex; flex-direction:column; align-items:center; gap:10px; margin:18px 0 4px; padding:20px 10px; border-radius:16px; background:#f8faf8; }
+    #inviteQr { background:white; padding:12px; border-radius:12px; min-width:224px; min-height:224px; display:grid; place-items:center; }
+    #inviteQr img, #inviteQr canvas { max-width:200px; height:auto; }
+    .share-actions { display:grid; gap:10px; margin-top:16px; }
+
     .address { font-size: 14px; color: var(--muted); margin: 4px 0; }
     .map { display: inline-block; color: var(--g); font-weight: 750; margin: 4px 0 12px; text-decoration: none; }
 
@@ -523,6 +546,12 @@ async function updatePassword() {
             <option value="classic">Clássico</option>
             <option value="sage">Sálvia</option>
             <option value="olive">Oliva</option>
+            <option value="christmas">🎄 Natal</option>
+            <option value="junina">🚩 Festa Junina</option>
+            <option value="carnival">🎭 Carnaval</option>
+            <option value="newyear">✨ Réveillon</option>
+            <option value="birthday">🎈 Aniversário</option>
+            <option value="wedding">💐 Casamento</option>
           </select>
           <div class="check"><input id="plus" type="checkbox" checked style="accent-color:var(--g)"><label for="plus">Permitir acompanhantes</label></div>
           <label>Máximo de acompanhantes</label><input id="max" type="number" min="0" max="20" value="5" oninput="this.value=Math.min(Math.max(Number(this.value)||0,0),20)">
@@ -782,6 +811,12 @@ async function togglePublication(id) {
             <option value="classic" ${e.invite_theme === 'classic' ? 'selected' : ''}>Clássico</option>
             <option value="sage" ${e.invite_theme === 'sage' ? 'selected' : ''}>Sálvia</option>
             <option value="olive" ${e.invite_theme === 'olive' ? 'selected' : ''}>Oliva</option>
+            <option value="christmas" ${e.invite_theme === 'christmas' ? 'selected' : ''}>🎄 Natal</option>
+            <option value="junina" ${e.invite_theme === 'junina' ? 'selected' : ''}>🚩 Festa Junina</option>
+            <option value="carnival" ${e.invite_theme === 'carnival' ? 'selected' : ''}>🎭 Carnaval</option>
+            <option value="newyear" ${e.invite_theme === 'newyear' ? 'selected' : ''}>✨ Réveillon</option>
+            <option value="birthday" ${e.invite_theme === 'birthday' ? 'selected' : ''}>🎈 Aniversário</option>
+            <option value="wedding" ${e.invite_theme === 'wedding' ? 'selected' : ''}>💐 Casamento</option>
           </select>
           <div class="check"><input id="plus" type="checkbox" ${e.allow_plus_ones !== false ? 'checked' : ''}><label for="plus">Permitir acompanhantes</label></div>
           <label>Máximo de acompanhantes</label><input id="max" type="number" min="0" max="20" value="${e.max_plus_ones ?? 5}" oninput="this.value=Math.min(Math.max(Number(this.value)||0,0),20)">
@@ -1056,22 +1091,77 @@ async function deleteSelectedGuests(id) {
     // =========================================================
     async function shareEvent(id) {
       nav('events');
-      const { data: e, error } = await sb.from('events').select('*').eq('id', id).single();
+      const u = await need();
+      if (!u) return;
+      const { data: e, error } = await sb.from('events').select('*').eq('id', id).eq('owner_id', u.id).single();
       if (error || !e) return A.innerHTML = st(error?.message || 'Evento não encontrado.');
-
-      const url = location.origin + '/convite/' + e.slug;
+      const url = location.origin + '/convite/' + encodeURIComponent(e.slug);
       currentEvent = e;
-
       A.innerHTML = `
         <div class="top"><button class="back" onclick="dashboard('${id}')">‹</button><h2>Compartilhar convite</h2></div>
         <div class="card">
           <div class="eyebrow">Link do convite</div>
-          ${e.is_published === true ? `<p class="muted" style="word-break:break-all">${esc(url)}</p>` : `<p class="muted">Este evento está em rascunho. Publique-o em Editar evento antes de compartilhar.</p>`}
-          ${e.is_published === true ? `<div class="stack">
-            <button class="primary" onclick="copyInviteLink('${id}')">Copiar link</button>
-            <button class="secondary" onclick="shareInvite('${id}')">Compartilhar</button>
-          </div>` : ''}
+          ${e.is_published === true ? `
+            <p class="muted" style="overflow-wrap:anywhere">${esc(url)}</p>
+            <div class="qr-box">
+              <strong>QR Code do convite</strong>
+              <div id="inviteQr" role="img" aria-label="QR Code para abrir o convite"></div>
+              <small class="muted" style="text-align:center">Aponte a câmera do celular para acessar o convite.</small>
+              <div id="qrMsg" aria-live="polite"></div>
+            </div>
+            <div class="share-actions">
+              <button class="primary" onclick="shareWhatsApp('${id}')">Enviar pelo WhatsApp</button>
+              <button class="secondary" onclick="downloadInviteQr()">Baixar QR Code (PNG)</button>
+              <button class="secondary" onclick="copyInviteLink('${id}')">Copiar link</button>
+              <button class="secondary" onclick="shareInvite('${id}')">Mais opções de compartilhamento</button>
+            </div>` : `<p class="muted">Este evento está em rascunho. Publique-o antes de compartilhar.</p>`}
         </div>`;
+      if (e.is_published === true) renderInviteQr(url);
+    }
+
+    function renderInviteQr(url) {
+      const target = el('inviteQr');
+      if (!target) return;
+      if (typeof QRCode === 'undefined') {
+        el('qrMsg').innerHTML = st('Não foi possível carregar o QR Code. Verifique a conexão e recarregue a página.');
+        return;
+      }
+      try {
+        target.innerHTML = '';
+        new QRCode(target, { text:url, width:200, height:200, colorDark:'#1d342a', colorLight:'#ffffff', correctLevel:QRCode.CorrectLevel.M });
+      } catch (err) {
+        console.error('Erro ao gerar QR Code:', err);
+        el('qrMsg').innerHTML = st('Não foi possível gerar o QR Code.');
+      }
+    }
+
+    function downloadInviteQr() {
+      const target = el('inviteQr');
+      const canvas = target?.querySelector('canvas');
+      const img = target?.querySelector('img');
+      const filename = 'festou-qr-convite.png';
+      try {
+        const href = canvas?.toDataURL('image/png') || img?.src;
+        if (!href || !href.startsWith('data:image/')) throw new Error('QR Code indisponível');
+        const a = document.createElement('a');
+        a.href = href;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } catch (err) {
+        el('qrMsg').innerHTML = st('QR Code indisponível. Recarregue a página e tente novamente.');
+      }
+    }
+
+    async function shareWhatsApp(id) {
+      const u = await need();
+      if (!u) return;
+      const { data:e, error } = await sb.from('events').select('name,slug,event_date,event_time,place,is_published').eq('id',id).eq('owner_id',u.id).single();
+      if (error || !e || e.is_published !== true) return alert('Convite indisponível para compartilhar.');
+      const url = location.origin + '/convite/' + encodeURIComponent(e.slug);
+      const message = `Você está convidado(a)! 🎉\n\n${e.name}\n📅 ${fmtDate(e.event_date)}${e.event_time ? ' às ' + fmtTime(e.event_time) : ''}\n📍 ${e.place || 'Local a definir'}\n\nConfirme sua presença: ${url}`;
+      window.open('https://wa.me/?text=' + encodeURIComponent(message), '_blank', 'noopener,noreferrer');
     }
 
     async function copyInviteLink(id) {
@@ -1120,7 +1210,7 @@ async function publicInvite(slug) {
   const closed = e.rsvp_deadline &&
     new Date(e.rsvp_deadline + 'T23:59:59') < new Date();
 
-  const theme = e.invite_theme || 'classic';
+  const theme = ['classic','sage','olive','christmas','junina','carnival','newyear','birthday','wedding'].includes(e.invite_theme) ? e.invite_theme : 'classic';
 
   const map = e.address
     ? 'https://www.google.com/maps/search/?api=1&query=' +

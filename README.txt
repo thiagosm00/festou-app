@@ -1,5 +1,1 @@
-Festou 2.0 — painel visual atualizado.
-Arquivos: index.html e _redirects.
-Substitua o index.html do repositório e mantenha _redirects na raiz.
-Sem alterações de SQL, Supabase ou RSVP.
-Teste: entrar > Meus eventos > Abrir painel.
+Festou: temas festivos + QR Code. Substitua o index.html no repositório GitHub. Sem alterações SQL. QR Code depende de CDN qrcodejs. Teste o convite público, RSVP e compartilhamento após deploy.
