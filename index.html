@@ -110,6 +110,37 @@
     .theme-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
     .theme { padding: 12px 5px; }
     .theme.on { outline: 2px solid var(--g); }
+
+    /* Festou 2.0 — painel do organizador (apenas visual) */
+    .dashboard-hero { position:relative; overflow:hidden; background:linear-gradient(140deg,#365848 0%,#496f5d 68%,#628773 100%); color:white; border-radius:25px; padding:25px 22px 22px; box-shadow:0 13px 30px rgba(41,75,55,.16); }
+    .dashboard-hero:after {content:"";position:absolute;right:-42px;top:-55px;width:185px;height:185px;border-radius:50%;border:38px solid rgba(255,255,255,.065);pointer-events:none}
+    .dashboard-hero .eyebrow {color:#d8e7dd}
+    .dashboard-hero h1 {font-size:29px;line-height:1.15;letter-spacing:-.8px;overflow-wrap:anywhere;margin:13px 0 9px}
+    .dashboard-hero .hero-meta {font-size:13px;color:#e4eee8;line-height:1.7;margin:0 0 15px}
+    .dashboard-hero .hero-meta span {display:block}
+    .dashboard-badge {display:inline-flex;align-items:center;gap:6px;border-radius:100px;padding:7px 11px;font-size:12px;font-weight:750;background:#e5f4e9;color:#28543c}
+    .dashboard-badge.draft {background:#f8e9d2;color:#805b25}
+    .dashboard-heading {display:flex;justify-content:space-between;align-items:center;gap:12px;margin:26px 0 12px}
+    .dashboard-heading h3 {font-size:18px;letter-spacing:-.3px;margin:0}
+    .dashboard-heading small {font-size:12px;color:var(--muted)}
+    .stats-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+    .stat-card {background:white;border:1px solid var(--line);border-radius:19px;padding:17px 16px;min-height:122px;box-shadow:0 4px 16px rgba(20,40,25,.035)}
+    .stat-icon {display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:11px;background:#eaf2ed;color:var(--g2);font-size:18px;font-weight:800}
+    .stat-value {display:block;font-size:29px;font-weight:850;letter-spacing:-.8px;margin:9px 0 1px;font-variant-numeric:tabular-nums}
+    .stat-label {font-size:12px;color:var(--muted);line-height:1.35}
+    .dashboard-actions {display:grid;gap:10px}
+    .dashboard-action {width:100%;display:flex;align-items:center;gap:13px;text-align:left;background:white;border:1px solid var(--line);padding:15px;border-radius:17px;color:var(--ink);font-weight:750;box-shadow:0 3px 12px rgba(20,40,25,.025)}
+    .dashboard-action .action-icon {width:40px;height:40px;border-radius:13px;display:grid;place-items:center;flex:none;background:#edf4ef;color:var(--g2)}
+    .dashboard-action svg {width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    .dashboard-action .action-copy {flex:1;min-width:0}
+    .dashboard-action .action-copy small {display:block;font-weight:450;font-size:12px;color:var(--muted);margin-top:3px;line-height:1.4}
+    .dashboard-action .action-arrow {font-size:22px;color:#819087;font-weight:400}
+    .dashboard-action.featured {background:var(--g);border-color:var(--g);color:white}
+    .dashboard-action.featured .action-icon {background:rgba(255,255,255,.15);color:white}
+    .dashboard-action.featured .action-copy small,.dashboard-action.featured .action-arrow {color:#e2eee5}
+    .dashboard-action:focus-visible {outline:3px solid #98c4a8;outline-offset:2px}
+    @media(min-width:700px) {.app {max-width:620px}.bottom {width:min(620px,100%)} }
+    @media(max-width:360px) {.dashboard-hero {padding:20px 17px}.stat-card {padding:14px}.dashboard-action {padding:12px}}
   </style>
 </head>
 
@@ -608,93 +639,89 @@ async function events() {
 
     
 async function dashboard(id) {
+  publicMode(false);
   nav('events');
+  const u = await need();
+  if (!u) return;
 
-  const { data: e, error } = await sb
-    .from('events')
-    .select('*')
-    .eq('id', id)
-    .single();
-
+  const { data: e, error } = await sb.from('events')
+    .select('*').eq('id', id).eq('owner_id', u.id).single();
   if (error || !e) {
     A.innerHTML = st(error?.message || 'Evento não encontrado.');
     return;
   }
-
   currentEvent = e;
-
-  const { data: g, error: guestError } = await sb
-    .from('guests')
-    .select('*')
-    .eq('event_id', id);
-
+  const { data: g, error: guestError } = await sb.from('guests')
+    .select('status,plus_ones').eq('event_id', id);
   if (guestError) {
     A.innerHTML = st(guestError.message);
     return;
   }
-
-  const guests = g || [];
-  const confirmed = guests.filter(x => x.status === 'confirmed');
-  const declined = guests.filter(x => x.status === 'declined');
-  const companions = confirmed.reduce(
-    (sum, x) => sum + (+x.plus_ones || 0), 0
-  );
+  const allGuests = g || [];
+  const confirmed = allGuests.filter(x => x.status === 'confirmed');
+  const declined = allGuests.filter(x => x.status === 'declined');
+  const companions = confirmed.reduce((sum, x) => sum + (+x.plus_ones || 0), 0);
+  const published = e.is_published === true;
+  const actionIcon = (paths) => `<svg viewBox="0 0 24 24" aria-hidden="true">${paths}</svg>`;
+  const actions = [
+    {
+      title: 'Visualizar convite', sub: 'Veja como seus convidados receberão o convite',
+      icon: actionIcon('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 7 9-7"/>'),
+      fn: `go('/convite/${esc(e.slug)}')`, featured: true
+    },
+    {
+      title: 'Lista de convidados', sub: 'Consulte confirmações e acompanhantes',
+      icon: actionIcon('<circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2m2-11a3 3 0 0 1 0 6m1 1a5 5 0 0 1 3 4"/>'),
+      fn: `guests('${id}')`
+    },
+    {
+      title: 'Compartilhar evento', sub: 'Copie ou envie o link do convite',
+      icon: actionIcon('<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.7 10.6 6.6-4.2m-6.6 9 6.6 4.2"/>'),
+      fn: `shareEvent('${id}')`
+    },
+    {
+      title: 'Editar informações', sub: 'Atualize local, descrição e configurações',
+      icon: actionIcon('<path d="M12 20h9M16 4l4 4-11 11-5 1 1-5z"/>'),
+      fn: `editEvent('${id}')`
+    },
+    {
+      title: published ? 'Despublicar evento' : 'Publicar evento',
+      sub: published ? 'Suspenda o acesso público ao convite' : 'Libere o convite para seus convidados',
+      icon: actionIcon('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>'),
+      fn: `togglePublication('${id}')`
+    }
+  ];
 
   A.innerHTML = `
     <div class="top">
-      <button class="back" onclick="events()">‹</button>
-      <h2>Painel</h2>
+      <button class="back" onclick="events()" aria-label="Voltar aos eventos">‹</button>
+      <h2>Painel do evento</h2>
     </div>
-
-    <div class="event">
-      <div class="eyebrow" style="color:#dfe9e3">
-        ${esc(e.type || 'Evento')}
-      </div>
-
-      <h2>${esc(e.name)}</h2>
-
-      <div style="margin:12px 0">
-        <span style="display:inline-block;padding:6px 12px;border-radius:20px;background:${e.is_published === true ? '#e3f1e8' : '#f3eee3'};color:${e.is_published === true ? '#365848' : '#85652c'};font-weight:700;font-size:13px">
-          ${e.is_published === true ? '✓ Publicado' : '● Rascunho'}
-        </span>
-      </div>
-
-      <div class="grid">
-        <div><b>${confirmed.length}</b><br><small>Confirmados</small></div>
-        <div><b>${companions}</b><br><small>Acompanhantes</small></div>
-        <div><b>${confirmed.length + companions}</b><br><small>Total previsto</small></div>
-        <div><b>${declined.length}</b><br><small>Não irão</small></div>
-      </div>
-    </div>
-
-    <div class="stack">
-      <button class="primary" onclick="go('/convite/${e.slug}')">
-        Ver convite
-      </button>
-
-      <button class="secondary" onclick="togglePublication('${id}')">
-        ${e.is_published === true
-          ? 'Despublicar evento'
-          : 'Publicar evento'}
-      </button>
-
-      <button class="secondary" onclick="editEvent('${id}')">
-        Editar evento
-      </button>
-
-      <button class="secondary" onclick="guests('${id}')">
-        Convidados
-      </button>
-
-      <button class="secondary" onclick="shareEvent('${id}')">
-        Compartilhar
-      </button>
-    </div>
-
-    <div id="publicationMsg"></div>
+    <section class="dashboard-hero">
+      <div class="eyebrow">${esc(e.type || 'Evento')}</div>
+      <h1>${esc(e.name)}</h1>
+      <p class="hero-meta">
+        <span>◷ ${fmtDate(e.event_date)} · ${esc(fmtTime(e.event_time))}</span>
+        <span>⌖ ${esc(e.place || 'Local não informado')}</span>
+      </p>
+      <span class="dashboard-badge ${published ? '' : 'draft'}">${published ? '✓ Publicado' : '● Rascunho'}</span>
+    </section>
+    <div class="dashboard-heading"><h3>Resumo de presenças</h3><small>Dados do evento</small></div>
+    <section class="stats-grid" aria-label="Indicadores de presença">
+      <div class="stat-card"><span class="stat-icon">✓</span><strong class="stat-value">${confirmed.length}</strong><span class="stat-label">Confirmados</span></div>
+      <div class="stat-card"><span class="stat-icon">+</span><strong class="stat-value">${companions}</strong><span class="stat-label">Acompanhantes</span></div>
+      <div class="stat-card"><span class="stat-icon">∑</span><strong class="stat-value">${confirmed.length + companions}</strong><span class="stat-label">Total previsto</span></div>
+      <div class="stat-card"><span class="stat-icon">−</span><strong class="stat-value">${declined.length}</strong><span class="stat-label">Não irão</span></div>
+    </section>
+    <div class="dashboard-heading"><h3>Gerenciar evento</h3></div>
+    <section class="dashboard-actions">
+      ${actions.map(a => `<button class="dashboard-action ${a.featured ? 'featured' : ''}" onclick="${a.fn}">
+        <span class="action-icon">${a.icon}</span><span class="action-copy">${a.title}<small>${a.sub}</small></span><span class="action-arrow" aria-hidden="true">›</span>
+      </button>`).join('')}
+    </section>
+    <div id="publicationMsg" aria-live="polite"></div>
   `;
 }
-
 
 async function togglePublication(id) {
   const u = await need();

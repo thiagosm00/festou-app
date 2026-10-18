@@ -1,1 +1,5 @@
-Atualização para permitir alteração de RSVP. Antes de publicar, executar festou_sql_alterar_resposta.sql no Supabase. Confirmar que edit_token uuid existe em public.guests.
+Festou 2.0 — painel visual atualizado.
+Arquivos: index.html e _redirects.
+Substitua o index.html do repositório e mantenha _redirects na raiz.
+Sem alterações de SQL, Supabase ou RSVP.
+Teste: entrar > Meus eventos > Abrir painel.
