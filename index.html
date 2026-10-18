@@ -546,12 +546,12 @@ async function updatePassword() {
             <option value="classic">Clássico</option>
             <option value="sage">Sálvia</option>
             <option value="olive">Oliva</option>
-            <option value="christmas">🎄 Natal</option>
+            <option value="natal">🎄 Natal</option>
             <option value="junina">🚩 Festa Junina</option>
-            <option value="carnival">🎭 Carnaval</option>
-            <option value="newyear">✨ Réveillon</option>
-            <option value="birthday">🎈 Aniversário</option>
-            <option value="wedding">💐 Casamento</option>
+            <option value="carnaval">🎭 Carnaval</option>
+            <option value="reveillon">✨ Réveillon</option>
+            <option value="aniversario">🎈 Aniversário</option>
+            <option value="casamento">💐 Casamento</option>
           </select>
           <div class="check"><input id="plus" type="checkbox" checked style="accent-color:var(--g)"><label for="plus">Permitir acompanhantes</label></div>
           <label>Máximo de acompanhantes</label><input id="max" type="number" min="0" max="20" value="5" oninput="this.value=Math.min(Math.max(Number(this.value)||0,0),20)">
@@ -811,12 +811,12 @@ async function togglePublication(id) {
             <option value="classic" ${e.invite_theme === 'classic' ? 'selected' : ''}>Clássico</option>
             <option value="sage" ${e.invite_theme === 'sage' ? 'selected' : ''}>Sálvia</option>
             <option value="olive" ${e.invite_theme === 'olive' ? 'selected' : ''}>Oliva</option>
-            <option value="christmas" ${e.invite_theme === 'christmas' ? 'selected' : ''}>🎄 Natal</option>
+            <option value="natal" ${e.invite_theme === 'natal' ? 'selected' : ''}>🎄 Natal</option>
             <option value="junina" ${e.invite_theme === 'junina' ? 'selected' : ''}>🚩 Festa Junina</option>
-            <option value="carnival" ${e.invite_theme === 'carnival' ? 'selected' : ''}>🎭 Carnaval</option>
-            <option value="newyear" ${e.invite_theme === 'newyear' ? 'selected' : ''}>✨ Réveillon</option>
-            <option value="birthday" ${e.invite_theme === 'birthday' ? 'selected' : ''}>🎈 Aniversário</option>
-            <option value="wedding" ${e.invite_theme === 'wedding' ? 'selected' : ''}>💐 Casamento</option>
+            <option value="carnaval" ${e.invite_theme === 'carnaval' ? 'selected' : ''}>🎭 Carnaval</option>
+            <option value="reveillon" ${e.invite_theme === 'reveillon' ? 'selected' : ''}>✨ Réveillon</option>
+            <option value="aniversario" ${e.invite_theme === 'aniversario' ? 'selected' : ''}>🎈 Aniversário</option>
+            <option value="casamento" ${e.invite_theme === 'casamento' ? 'selected' : ''}>💐 Casamento</option>
           </select>
           <div class="check"><input id="plus" type="checkbox" ${e.allow_plus_ones !== false ? 'checked' : ''}><label for="plus">Permitir acompanhantes</label></div>
           <label>Máximo de acompanhantes</label><input id="max" type="number" min="0" max="20" value="${e.max_plus_ones ?? 5}" oninput="this.value=Math.min(Math.max(Number(this.value)||0,0),20)">
@@ -1210,7 +1210,8 @@ async function publicInvite(slug) {
   const closed = e.rsvp_deadline &&
     new Date(e.rsvp_deadline + 'T23:59:59') < new Date();
 
-  const theme = ['classic','sage','olive','christmas','junina','carnival','newyear','birthday','wedding'].includes(e.invite_theme) ? e.invite_theme : 'classic';
+  const themeClasses = { classic:'', sage:'sage', olive:'olive', natal:'christmas', junina:'junina', carnaval:'carnival', reveillon:'newyear', aniversario:'birthday', casamento:'wedding' };
+   const theme = Object.prototype.hasOwnProperty.call(themeClasses, e.invite_theme) ? themeClasses[e.invite_theme] : '';
 
   const map = e.address
     ? 'https://www.google.com/maps/search/?api=1&query=' +
