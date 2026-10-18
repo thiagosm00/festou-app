@@ -1163,8 +1163,23 @@ async function publicInvite(slug) {
       A.innerHTML = `
         <div class="top"><button class="back" onclick="go('/convite/${slug}')">‹</button><h2>Confirmar presença</h2></div>
         <div class="card">
-          <label>Seu nome</label><input id="gn">
-          <label>Você vai participar?</label>
+          
+<label>Seu nome</label>
+<input id="gn" autocomplete="name">
+
+<label>Telefone com DDD (obrigatório)</label>
+<input
+  id="gphone"
+  type="tel"
+  inputmode="tel"
+  autocomplete="tel"
+  placeholder="(21) 99999-9999"
+  maxlength="20"
+  required
+>
+
+<label>Você vai participar?</label>
+
           <select id="gs" onchange="togglePlus()">
             <option value="confirmed">Sim, estarei presente</option>
             <option value="declined">Não poderei ir</option>
@@ -1186,37 +1201,100 @@ async function publicInvite(slug) {
       plusBox.style.display = status.value === 'confirmed' ? 'block' : 'none';
     }
 
-    async function saveGuest(id, slug, max) {
-      const name = el('gn').value.trim();
-      const msg = el('msg');
-      if (!name) return msg.innerHTML = st('Informe seu nome.');
+    
+async function saveGuest(id, slug, max) {
+  const name = el('gn').value.trim();
+  const msg = el('msg');
 
-      const status = el('gs').value;
-      const plusInput = el('gp');
-      const plusOnes = status === 'confirmed'
-        ? clamp(plusInput?.value || 0, 0, max)
-        : 0;
+  if (!name) {
+    msg.innerHTML = st('Informe seu nome.');
+    return;
+  }
 
-      const { error } = await sb.from('guests').insert([{
-        event_id: id,
-        name,
-        status,
-        plus_ones: plusOnes,
-        message: el('gm').value || null
-      }]);
+  // Remove espaços, parênteses e outros caracteres.
+  let phone = (el('gphone')?.value || '').replace(/\D/g, '');
 
-      if (error) return msg.innerHTML = st(error.message);
+  // Remove o código do Brasil, se informado.
+  if (phone.length === 13 && phone.startsWith('55')) {
+    phone = phone.slice(2);
+  }
 
-      localStorage.setItem('festou-rsvp-' + id, '1');
-      A.innerHTML = `
-        <div class="card" style="text-align:center;margin-top:35px">
-          <div style="font-size:52px;color:var(--g)">✓</div>
-          <h1>Resposta registrada</h1>
-          <p class="muted">Obrigado, ${esc(name)}. Sua resposta foi enviada ao organizador.</p>
-          <p class="muted">Você já respondeu a este convite neste aparelho.</p>
-          <button class="secondary" onclick="go('/convite/${slug}')">Voltar ao convite</button>
-        </div>`;
+  // Aceita telefone brasileiro com DDD (10 ou 11 dígitos).
+  if (!/^[1-9][0-9]{9,10}$/.test(phone)) {
+    msg.innerHTML = st('Informe um telefone válido com DDD.');
+    return;
+  }
+
+  const status = el('gs').value;
+  const plusInput = el('gp');
+
+  const plusOnes = status === 'confirmed'
+    ? clamp(plusInput?.value || 0, 0, max)
+    : 0;
+
+  const button = document.querySelector(
+    'button[onclick^="saveGuest("]'
+  );
+
+  if (button?.disabled) return;
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Enviando...';
+  }
+
+  const { error } = await sb.from('guests').insert([{
+    event_id: id,
+    name,
+    phone,
+    status,
+    plus_ones: plusOnes,
+    message: el('gm').value || null
+  }]);
+
+  if (error) {
+    if (error.code === '23505') {
+      msg.innerHTML = st(
+        'Este telefone já respondeu a este evento.'
+      );
+    } else if (error.code === '23514') {
+      msg.innerHTML = st(
+        'Informe um telefone válido com DDD.'
+      );
+    } else {
+      msg.innerHTML = st(
+        'Não foi possível enviar sua resposta. Tente novamente.'
+      );
+      console.error('Erro ao salvar convidado:', error);
     }
+
+    if (button) {
+      button.disabled = false;
+      button.textContent = 'Enviar resposta';
+    }
+    return;
+  }
+
+  localStorage.setItem('festou-rsvp-' + id, '1');
+
+  A.innerHTML = `
+    <div class="card" style="text-align:center;margin-top:35px">
+      <div style="font-size:52px;color:var(--g)">✓</div>
+      <h1>Resposta registrada</h1>
+      <p class="muted">
+        Obrigado, ${esc(name)}.
+        Sua resposta foi enviada ao organizador.
+      </p>
+      <p class="muted">
+        Você já respondeu a este convite neste aparelho.
+      </p>
+      <button class="secondary"
+        onclick="go('/convite/${slug}')">
+        Voltar ao convite
+      </button>
+    </div>`;
+}
+
 
     // =========================================================
     // CONTA E TEXTOS LEGAIS
