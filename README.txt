@@ -1,4 +1,1 @@
-Festou V18 - Central de Compartilhamento.
-Substitua index.html no repositorio GitHub.
-Inclui QR Code (dependencia qrcodejs CDN), feedback ao copiar e WhatsApp personalizado.
-Nao altera o Supabase nem as tabelas.
+Atualização para permitir alteração de RSVP. Antes de publicar, executar festou_sql_alterar_resposta.sql no Supabase. Confirmar que edit_token uuid existe em public.guests.

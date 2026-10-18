@@ -1135,62 +1135,39 @@ async function publicInvite(slug) {
 }
 
 
+    function rsvpKey(id) { return 'festou-rsvp-' + id; }
+
+    function savedRsvp(id) {
+      try {
+        const value = localStorage.getItem(rsvpKey(id));
+        if (!value) return null;
+        if (value === '1') return { legacy: true };
+        const item = JSON.parse(value);
+        return item && typeof item === 'object' ? item : { legacy: true };
+      } catch { return { legacy: true }; }
+    }
+
     async function rsvp(slug) {
       publicMode(true);
-
       const { data: e, error } = await sb.from('events').select('*').eq('slug', slug).single();
-      if (error || !e) return A.innerHTML = st('Convite não encontrado.');
-      if (e.is_published !== true) return A.innerHTML = st('Este convite ainda não foi publicado.');
-
-      // Evita uma segunda resposta no mesmo navegador/aparelho.
-      // É uma proteção de UX, não uma garantia global contra duplicidade.
-      if (localStorage.getItem('festou-rsvp-' + e.id)) {
-        return A.innerHTML = `
-          <div class="card" style="text-align:center;margin-top:35px">
-            <div style="font-size:52px;color:var(--g)">✓</div>
-            <h1>Presença já respondida</h1>
-            <p class="muted">Este convite já foi respondido neste aparelho.</p>
-            <button class="secondary" onclick="go('/convite/${slug}')">Voltar ao convite</button>
-          </div>`;
+      if (error || !e || e.is_published !== true) return A.innerHTML = st('Convite não disponível.');
+      const saved = savedRsvp(e.id);
+      const closed = e.rsvp_deadline && new Date(e.rsvp_deadline + 'T23:59:59') < new Date();
+      if (saved && (saved.legacy || !saved.id || !saved.token)) {
+        return A.innerHTML = `<div class="card" style="text-align:center;margin-top:35px"><h1>Presença já respondida</h1><p class="muted">Este convite já foi respondido neste aparelho. Para alterar uma confirmação antiga, procure o organizador.</p><button class="secondary" onclick="go('/convite/${esc(slug)}')">Voltar ao convite</button></div>`;
       }
-
-      if (e.rsvp_deadline && new Date(e.rsvp_deadline + 'T23:59:59') < new Date()) {
-        return publicInvite(slug);
-      }
-
+      if (closed) return publicInvite(slug);
       const max = e.allow_plus_ones === false ? 0 : clamp(e.max_plus_ones ?? 5, 0, 20);
-
+      const editing = Boolean(saved);
       A.innerHTML = `
-        <div class="top"><button class="back" onclick="go('/convite/${slug}')">‹</button><h2>Confirmar presença</h2></div>
+        <div class="top"><button class="back" onclick="go('/convite/${esc(slug)}')">‹</button><h2>${editing ? 'Alterar resposta' : 'Confirmar presença'}</h2></div>
         <div class="card">
-          
-<label>Seu nome</label>
-<input id="gn" autocomplete="name">
-
-<label>Telefone com DDD (obrigatório)</label>
-<input
-  id="gphone"
-  type="tel"
-  inputmode="tel"
-  autocomplete="tel"
-  placeholder="(21) 99999-9999"
-  maxlength="20"
-  required
->
-
-<label>Você vai participar?</label>
-
-          <select id="gs" onchange="togglePlus()">
-            <option value="confirmed">Sim, estarei presente</option>
-            <option value="declined">Não poderei ir</option>
-          </select>
-          <div id="plusBox" ${max === 0 ? 'class="hidden"' : ''}>
-            <label>Acompanhantes (máximo ${max})</label>
-            <input id="gp" type="number" min="0" max="${max}" value="0" oninput="this.value=Math.min(Math.max(Number(this.value)||0,0),${max})">
-          </div>
-          <label>Mensagem (opcional)</label><textarea id="gm"></textarea>
-          <div class="stack"><button class="primary" onclick="saveGuest('${e.id}','${slug}',${max})">Enviar resposta</button></div>
-          <div id="msg"></div>
+          <label>Seu nome</label><input id="gn" autocomplete="name" value="${esc(saved?.name || '')}" ${editing ? 'readonly' : ''}>
+          <label>Telefone com DDD (obrigatório)</label><input id="gphone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(21) 99999-9999" maxlength="20" value="${esc(saved?.phone || '')}" ${editing ? 'readonly' : ''} required>
+          <label>Você vai participar?</label><select id="gs" onchange="togglePlus()"><option value="confirmed" ${saved?.status === 'confirmed' ? 'selected' : ''}>Sim, estarei presente</option><option value="declined" ${saved?.status === 'declined' ? 'selected' : ''}>Não poderei ir</option></select>
+          <div id="plusBox" ${max === 0 || saved?.status === 'declined' ? 'class="hidden"' : ''}><label>Acompanhantes (máximo ${max})</label><input id="gp" type="number" min="0" max="${max}" value="${clamp(saved?.plus_ones ?? 0, 0, max)}" oninput="this.value=Math.min(Math.max(Number(this.value)||0,0),${max})"></div>
+          <label>Mensagem (opcional)</label><textarea id="gm">${esc(saved?.message || '')}</textarea>
+          <div class="stack"><button class="primary" id="submitRsvp" onclick="saveGuest('${e.id}','${esc(slug)}',${max})">${editing ? 'Salvar alteração' : 'Enviar resposta'}</button></div><div id="msg"></div>
         </div>`;
     }
 
@@ -1202,99 +1179,54 @@ async function publicInvite(slug) {
     }
 
     
-async function saveGuest(id, slug, max) {
+ async function saveGuest(id, slug, max) {
   const name = el('gn').value.trim();
   const msg = el('msg');
-
-  if (!name) {
-    msg.innerHTML = st('Informe seu nome.');
-    return;
-  }
-
-  // Remove espaços, parênteses e outros caracteres.
+  if (!name) return msg.innerHTML = st('Informe seu nome.');
   let phone = (el('gphone')?.value || '').replace(/\D/g, '');
-
-  // Remove o código do Brasil, se informado.
-  if (phone.length === 13 && phone.startsWith('55')) {
-    phone = phone.slice(2);
-  }
-
-  // Aceita telefone brasileiro com DDD (10 ou 11 dígitos).
-  if (!/^[1-9][0-9]{9,10}$/.test(phone)) {
-    msg.innerHTML = st('Informe um telefone válido com DDD.');
-    return;
-  }
-
+  if (phone.length === 13 && phone.startsWith('55')) phone = phone.slice(2);
+  if (!/^[1-9][0-9]{9,10}$/.test(phone)) return msg.innerHTML = st('Informe um telefone válido com DDD.');
   const status = el('gs').value;
-  const plusInput = el('gp');
-
-  const plusOnes = status === 'confirmed'
-    ? clamp(plusInput?.value || 0, 0, max)
-    : 0;
-
-  const button = document.querySelector(
-    'button[onclick^="saveGuest("]'
-  );
-
+  const plusOnes = status === 'confirmed' ? clamp(el('gp')?.value || 0, 0, max) : 0;
+  const message = el('gm').value || null;
+  const button = el('submitRsvp');
   if (button?.disabled) return;
-
-  if (button) {
-    button.disabled = true;
-    button.textContent = 'Enviando...';
+  button.disabled = true;
+  button.textContent = 'Salvando...';
+  const saved = savedRsvp(id);
+  let error = null;
+  let record = null;
+  if (saved?.id && saved?.token) {
+    const response = await sb.rpc('festou_update_rsvp', {
+      p_guest_id: saved.id,
+      p_token: saved.token,
+      p_status: status,
+      p_plus_ones: plusOnes,
+      p_message: message
+    });
+    error = response.error;
+    if (!error && response.data !== true) error = { message: 'Não foi possível alterar esta resposta.' };
+    record = { id: saved.id, edit_token: saved.token };
+  } else {
+    const token = crypto.randomUUID();
+    const guestId = crypto.randomUUID();
+    const response = await sb.from('guests').insert([{
+      id: guestId, event_id: id, name, phone, status, plus_ones: plusOnes, message, edit_token: token
+    }]);
+    error = response.error;
+    record = { id: guestId, edit_token: token };
   }
-
-  const { error } = await sb.from('guests').insert([{
-    event_id: id,
-    name,
-    phone,
-    status,
-    plus_ones: plusOnes,
-    message: el('gm').value || null
-  }]);
-
   if (error) {
-    if (error.code === '23505') {
-      msg.innerHTML = st(
-        'Este telefone já respondeu a este evento.'
-      );
-    } else if (error.code === '23514') {
-      msg.innerHTML = st(
-        'Informe um telefone válido com DDD.'
-      );
-    } else {
-      msg.innerHTML = st(
-        'Não foi possível enviar sua resposta. Tente novamente.'
-      );
-      console.error('Erro ao salvar convidado:', error);
-    }
-
-    if (button) {
-      button.disabled = false;
-      button.textContent = 'Enviar resposta';
-    }
+    msg.innerHTML = st(error.code === '23505' ? 'Este telefone já respondeu a este evento.' : 'Não foi possível salvar a resposta: ' + (error.message || 'Tente novamente.'));
+    button.disabled = false;
+    button.textContent = saved?.id ? 'Salvar alteração' : 'Enviar resposta';
     return;
   }
-
-  localStorage.setItem('festou-rsvp-' + id, '1');
-
-  A.innerHTML = `
-    <div class="card" style="text-align:center;margin-top:35px">
-      <div style="font-size:52px;color:var(--g)">✓</div>
-      <h1>Resposta registrada</h1>
-      <p class="muted">
-        Obrigado, ${esc(name)}.
-        Sua resposta foi enviada ao organizador.
-      </p>
-      <p class="muted">
-        Você já respondeu a este convite neste aparelho.
-      </p>
-      <button class="secondary"
-        onclick="go('/convite/${slug}')">
-        Voltar ao convite
-      </button>
-    </div>`;
+  localStorage.setItem(rsvpKey(id), JSON.stringify({
+    id: record.id, token: record.edit_token, name, phone, status, plus_ones: plusOnes, message
+  }));
+  A.innerHTML = `<div class="card" style="text-align:center;margin-top:35px"><div style="font-size:52px;color:var(--g)">✓</div><h1>${saved?.id ? 'Resposta atualizada' : 'Resposta registrada'}</h1><p class="muted">Obrigado, ${esc(name)}. Sua resposta foi enviada ao organizador.</p><div class="stack"><button class="primary" onclick="rsvp('${esc(slug)}')">Alterar resposta</button><button class="secondary" onclick="go('/convite/${esc(slug)}')">Voltar ao convite</button></div></div>`;
 }
-
 
     // =========================================================
     // CONTA E TEXTOS LEGAIS
